@@ -1,0 +1,140 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "storageAccountName": {
+            "type": "string",
+            "defaultValue": "nopscurexportstorage",
+            "metadata": {
+                "description": "The name of the storage account."
+            }
+        },
+        "storageContainerName": {
+            "type": "string",
+            "defaultValue": "nops",
+            "metadata": {
+                "description": "The name of the blob storage container."
+            }
+        },
+        "costandUsageExportName": {
+            "type": "string",
+            "defaultValue": "nOpsAZFocusCURExport",
+            "metadata": {
+                "description": "The name of the FOCUS CUR Export."
+            }
+        }
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2019-06-01",
+            "name": "[parameters('storageAccountName')]",
+            "location": "eastasia",
+            "sku": {
+                "name": "Standard_LRS",
+                "tier": "Standard"
+            },
+            "kind": "Storage",
+            "properties": {
+                "networkAcls": {
+                    "bypass": "AzureServices",
+                    "virtualNetworkRules": [],
+                    "ipRules": [],
+                    "defaultAction": "Allow"
+                },
+                "supportsHttpsTrafficOnly": true,
+                "encryption": {
+                    "services": {
+                        "file": {
+                            "keyType": "Account",
+                            "enabled": true
+                        },
+                        "blob": {
+                            "keyType": "Account",
+                            "enabled": true
+                        }
+                    },
+                    "keySource": "Microsoft.Storage"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/blobServices",
+            "apiVersion": "2019-06-01",
+            "name": "[concat(parameters('storageAccountName'), '/default')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
+            ],
+            "sku": {
+                "name": "Standard_LRS",
+                "tier": "Standard"
+            },
+            "properties": {
+                "cors": {
+                    "corsRules": []
+                },
+                "deleteRetentionPolicy": {
+                    "enabled": false
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+            "apiVersion": "2019-06-01",
+            "name": "[concat(parameters('storageAccountName'), '/default/', parameters('storageContainerName'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', parameters('storageAccountName'), 'default')]",
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
+            ],
+            "properties": {
+                "publicAccess": "None"
+            }
+        },
+        {
+            "type": "Microsoft.CostManagement/exports",
+            "apiVersion": "2022-10-01",
+            "name": "[parameters('costandUsageExportName')]",
+            "location": "global",
+            "properties": {
+                "format": "Csv",
+                "partitionData": true,
+                "schedule": {
+                    "status": "Active",
+                    "recurrence": "Daily",
+                    "recurrencePeriod": {
+                        "from": "2024-09-13T00:00:00Z",
+                        "to": "2034-09-13T00:00:00Z"
+                    }
+                },
+                "definition": {
+                    "type": "Usage",
+                    "timeframe": "MonthToDate",
+                    "dataset": {
+                        "granularity": "Daily",
+                        "configuration": {
+                            "columns": []
+                        }
+                    }
+                },
+                "deliveryInfo": {
+                    "destination": {
+                        "resourceId": "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]",
+                        "container": "[parameters('storageContainerName')]",
+                        "rootFolderPath": "billingReports"
+                    }
+                }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', parameters('storageAccountName'), 'default', parameters('storageContainerName'))]",
+                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', parameters('storageAccountName'), 'default')]",
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
+            ]
+        }
+    ],
+    "outputs": {
+        "containerABC": {
+            "type": "string",
+            "value": "[resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', parameters('storageAccountName'), 'default', parameters('storageContainerName'))]"
+        }
+    }
+}
