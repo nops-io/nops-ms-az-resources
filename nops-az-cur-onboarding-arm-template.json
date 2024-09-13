@@ -2,6 +2,13 @@
     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
+        "billingAccountId": {
+            "type": "string",
+            "defaultValue": "",
+            "metadata": {
+                "description": "The ID of the billing account for Cost and Usage Export."
+            }
+        },
         "storageAccountName": {
             "type": "string",
             "defaultValue": "nopscurexport",
@@ -74,6 +81,7 @@
             "name": "[parameters('costandUsageExportName')]",
             "location": "global",
             "properties": {
+                "scope": "[concat('/providers/Microsoft.Billing/billingAccounts/', parameters('billingAccountId'))]",
                 "format": "Csv",
                 "partitionData": true,
                 "schedule": {
