@@ -2,11 +2,11 @@
 
 # Variables
 subscriptionId=$(az account show --query id -o tsv)
-resourceGroupName="your-resource-group-name"
-storageAccountName="your-storage-account-name"
-applicationName="your-application-name"
-keyVaultName="your-key-vault-name"
-webhook_url="https://your-webhook-url.com/endpoint"
+resourceGroupName=${1:-"nops-resource-group"}
+storageAccountName=${2-"nopscurexportstorage"}
+applicationName=${3:-"nops-app-v1"}
+webhook_url=${4:-"https://webhook.site/216f04d8-73b9-476d-9f26-d2946b839f4b"}
+
 
 # Create the Azure AD application
 echo "Creating Azure AD application..."
@@ -30,11 +30,7 @@ clientSecret=$(az ad app credential reset \
   --id "$appId" \
   --display-name "appSecret" \
   --query password -o tsv)
-echo "Client Secret created."
-
-# Store the client secret in Azure Key Vault
-echo "Storing client secret in Azure Key Vault..."
-az keyvault secret set --vault-name "$keyVaultName" --name "ClientSecret" --value "$clientSecret"
+echo "Client Secret created --$clientSecret"
 
 # Assign the role to the application
 echo "Assigning role to the application..."
