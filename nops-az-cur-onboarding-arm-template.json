@@ -4,7 +4,7 @@
     "parameters": {
         "storageAccountName": {
             "type": "string",
-            "defaultValue": "nopscurexportstorage",
+            "defaultValue": "nopscurexport",
             "metadata": {
                 "description": "The name of the storage account."
             }
@@ -27,36 +27,14 @@
     "resources": [
         {
             "type": "Microsoft.Storage/storageAccounts",
-            "apiVersion": "2019-06-01",
             "name": "[parameters('storageAccountName')]",
-            "location": "eastasia",
+            "apiVersion": "2019-06-01",
+            "location": "eastus",
             "sku": {
                 "name": "Standard_LRS",
                 "tier": "Standard"
             },
-            "kind": "Storage",
-            "properties": {
-                "networkAcls": {
-                    "bypass": "AzureServices",
-                    "virtualNetworkRules": [],
-                    "ipRules": [],
-                    "defaultAction": "Allow"
-                },
-                "supportsHttpsTrafficOnly": true,
-                "encryption": {
-                    "services": {
-                        "file": {
-                            "keyType": "Account",
-                            "enabled": true
-                        },
-                        "blob": {
-                            "keyType": "Account",
-                            "enabled": true
-                        }
-                    },
-                    "keySource": "Microsoft.Storage"
-                }
-            }
+            "kind": "StorageV2"
         },
         {
             "type": "Microsoft.Storage/storageAccounts/blobServices",
@@ -107,7 +85,7 @@
                     }
                 },
                 "definition": {
-                    "type": "Usage",
+                    "type": "FOCUS",
                     "timeframe": "MonthToDate",
                     "dataset": {
                         "granularity": "Daily",
@@ -130,11 +108,5 @@
                 "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
             ]
         }
-    ],
-    "outputs": {
-        "containerABC": {
-            "type": "string",
-            "value": "[resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', parameters('storageAccountName'), 'default', parameters('storageContainerName'))]"
-        }
-    }
+    ]
 }
