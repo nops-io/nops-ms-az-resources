@@ -77,31 +77,35 @@
         },
         {
             "type": "Microsoft.CostManagement/exports",
-            "apiVersion": "2022-10-01",
+            "apiVersion": "2023-07-01-preview",
             "name": "[parameters('costandUsageExportName')]",
             "location": "global",
             "properties": {
                 "scope": "[concat('/providers/Microsoft.Billing/billingAccounts/', parameters('billingAccountId'))]",
                 "format": "Csv",
                 "partitionData": true,
+                "dataOverwriteBehavior": "OverwritePreviousReport",
+                "compressionMode": "gzip",
                 "schedule": {
                     "status": "Active",
                     "recurrence": "Daily",
                     "recurrencePeriod": {
                         "from": "2024-09-13T00:00:00Z",
-                        "to": "2034-09-13T00:00:00Z"
+                        "to": "2034-12-31T00:00:00Z"
                     }
                 },
                 "definition": {
                     "type": "FocusCost",
                     "timeframe": "MonthToDate",
-                    "dataset": {
-                        "granularity": "Daily",
-                        "configuration": {
-                            "columns": []
-                        }
+                    "dataSet": {
+                      "configuration": {
+                        "columns": [],
+                        "dataVersion": "1.0",
+                        "filters": []
+                      },
+                      "granularity": "Daily"
                     }
-                },
+                  },
                 "deliveryInfo": {
                     "destination": {
                         "resourceId": "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]",
