@@ -93,7 +93,7 @@
                     }
                 },
                 "definition": {
-                    "type": "FOCUS",
+                    "type": "FocusCost",
                     "timeframe": "MonthToDate",
                     "dataset": {
                         "granularity": "Daily",
