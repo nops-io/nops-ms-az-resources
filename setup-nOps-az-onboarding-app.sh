@@ -91,11 +91,6 @@ if ! az extension show --name costmanagement &> /dev/null; then
     az extension add --name costmanagement
 fi
 
-if ! az extension show --name billing &> /dev/null; then
-    echo "Installing billing extension..."
-    az extension add --name billing
-fi
-
 # ---------------------------------------------
 # 1. Create Resource Group
 # ---------------------------------------------
