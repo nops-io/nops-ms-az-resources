@@ -18,10 +18,11 @@ DEFAULT_LOCATION="eastus"
 DEFAULT_STORAGE_ACCOUNT_PREFIX="nopsstorage"
 DEFAULT_CONTAINER_NAME="nops"
 DEFAULT_APP_NAME="nops-storage-access-app"
-DEFAULT_EXPORT_NAME_CSV="nops-billing-export-csv"
-DEFAULT_EXPORT_NAME_PARQUET="nops-billing-export-parquet"
+DEFAULT_EXPORT_NAME_CSV="nops-billing-export-csv-"
+DEFAULT_EXPORT_NAME_PARQUET="nops-billing-export-parquet-"
 DEFAULT_EXPORT_DIR_CSV="billingReportsCSV"
 DEFAULT_EXPORT_DIR_PARQUET="billingReportsParquet"
+CURRENT_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 
 # Generate a random suffix to ensure uniqueness
 randomSuffix=${11:-$RANDOM}
@@ -38,8 +39,8 @@ location=${3:-$DEFAULT_LOCATION}
 storageAccountName=${4:-"$DEFAULT_STORAGE_ACCOUNT_PREFIX$randomSuffix"}
 containerName=${5:-$DEFAULT_CONTAINER_NAME}
 applicationName=${6:-"$DEFAULT_APP_NAME$randomSuffix"}
-exportNameCSV=${7:-$DEFAULT_EXPORT_NAME_CSV}
-exportNameParquet=${8:-$DEFAULT_EXPORT_NAME_PARQUET}
+exportNameCSV=${7:-$DEFAULT_EXPORT_NAME_CSV$randomSuffix}
+exportNameParquet=${8:-$DEFAULT_EXPORT_NAME_PARQUET$randomSuffix}
 exportDirectoryCSV=${9:-$DEFAULT_EXPORT_DIR_CSV}
 exportDirectoryParquet=${10:-$DEFAULT_EXPORT_DIR_PARQUET}
 
@@ -68,13 +69,14 @@ echo "2. Create a storage account and container for cost exports"
 echo "   - Storage Account Name: $storageAccountName"
 echo "   - Container Name: $containerName"
 echo "3. Set up two cost and usage exports in CSV and Parquet formats"
-echo "   - CSV export with Gzip compression"
-echo "   - Parquet export with Snappy compression"
+echo "   - CSV export with Gzip compression in root directory $exportDirectoryCSV"
+echo "   - Parquet export with Snappy compression in root directory $exportDirectoryParquet"
 echo "4. Create an Azure AD application and service principal"
 echo "   - Application Name: $applicationName"
-echo "5. Assign 'Storage Blob Data Contributor' role to the application"
+echo "5. Assign 'Storage Blob Data Contributor' role to the application for above storage account"
 echo ""
 echo "Billing Account ID: $billingAccountId"
+echo "Subscription ID: $currentSubscriptionId"
 echo ""
 echo "Press Enter to start the setup or Ctrl+C to cancel..."
 read -r
@@ -85,7 +87,7 @@ echo "Starting Azure setup script..."
 az config set extension.use_dynamic_install=yes_without_prompt
 az config set extension.dynamic_install_allow_preview=true
 
-# Install required extensions if not already installed
+# Install required extension if not already installed
 if ! az extension show --name costmanagement &> /dev/null; then
     echo "Installing costmanagement extension..."
     az extension add --name costmanagement
@@ -156,43 +158,113 @@ storageAccountResourceId=$(az storage account show \
 fromDate=$(date -u -d "+1 day" +"%Y-%m-%dT00:00:00Z")  # UTC tomorrow
 toDate=$(date -u -d "+10 years +1 day" +"%Y-%m-%dT00:00:00Z")  # 10 years from 'from' date
 
-# Create CSV export with Gzip compression
-echo "Creating billing export '$exportNameCSV' (CSV with Gzip)..."
-az costmanagement export create \
-    --scope "$billingScope" \
-    --name "$exportNameCSV" \
-    --type ActualCost \
-    --timeframe MonthToDate \
-    --storage-account-id "$storageAccountResourceId" \
-    --storage-container "$containerName" \
-    --storage-directory "$exportDirectoryCSV" \
-    --dataset configuration="{\"format\":\"Csv\",\"compression\":\"GZip\"}" \
-    --recurrence Daily \
-    --recurrence-period from="$fromDate" to="$toDate" \
-    --schedule-status Active 1>/dev/null || {
-    echo "Failed to create billing export '$exportNameCSV'"
+
+# Create the request body for the export
+cat <<EOF > body.json
+{
+  "properties": {
+    "schedule": {
+      "status": "Active",
+      "recurrence": "Daily",
+      "recurrencePeriod": {
+        "from": "$fromDate",
+        "to": "$toDate"
+      }
+    },
+    "deliveryInfo": {
+      "destination": {
+        "resourceId": "$storageAccountResourceId",
+        "container": "$containerName",
+        "rootFolderPath": "$exportDirectoryCSV",
+        "type": "AzureBlob"
+      }
+    },
+    "definition": {
+      "type": "FocusCost",
+      "timeframe": "MonthToDate",
+      "dataSet": {
+        "configuration": {
+          "columns": [],
+          "dataVersion": "1.0",
+          "filters": []
+        },
+        "granularity": "Daily"
+      }
+    },
+    "format": "Csv",
+    "partitionData": true,
+    "dataOverwriteBehavior": "OverwritePreviousReport",
+    "compressionMode": "gzip",
+    "exportDescription": ""
+  }
+}
+EOF
+
+# Create the export using az rest
+echo "Creating billing export '$exportNameCSV' using REST API..."
+az rest --method put \
+    --url "https://management.azure.com/$billingScope/providers/Microsoft.CostManagement/exports/$exportNameCSV?api-version=2023-07-01-preview" \
+    --body @body.json 1>/dev/null || {
+    echo "Failed to create billing export '$exportNameCSV' using REST API"
     exit 1
 }
 echo "Billing export '$exportNameCSV' created successfully."
 
-# Create Parquet export with Snappy compression
-echo "Creating billing export '$exportNameParquet' (Parquet with Snappy)..."
-az costmanagement export create \
-    --scope "$billingScope" \
-    --name "$exportNameParquet" \
-    --type ActualCost \
-    --timeframe MonthToDate \
-    --storage-account-id "$storageAccountResourceId" \
-    --storage-container "$containerName" \
-    --storage-directory "$exportDirectoryParquet" \
-    --dataset configuration="{\"format\":\"Parquet\",\"compression\":\"Snappy\"}" \
-    --recurrence Daily \
-    --recurrence-period from="$fromDate" to="$toDate" \
-    --schedule-status Active 1>/dev/null || {
-    echo "Failed to create billing export '$exportNameParquet'"
+
+# Repeat for Parquet export
+# Update the request body for Parquet format
+cat <<EOF > body.json
+{
+  "properties": {
+    "schedule": {
+      "status": "Active",
+      "recurrence": "Daily",
+      "recurrencePeriod": {
+        "from": "$fromDate",
+        "to": "$toDate"
+      }
+    },
+    "deliveryInfo": {
+      "destination": {
+        "resourceId": "$storageAccountResourceId",
+        "container": "$containerName",
+        "rootFolderPath": "$exportDirectoryParquet",
+        "type": "AzureBlob"
+      }
+    },
+    "definition": {
+      "type": "FocusCost",
+      "timeframe": "MonthToDate",
+      "dataSet": {
+        "configuration": {
+          "columns": [],
+          "dataVersion": "1.0",
+          "filters": []
+        },
+        "granularity": "Daily"
+      }
+    },
+    "format": "Parquet",
+    "compressionMode": "Snappy",
+    "partitionData": true,
+    "dataOverwriteBehavior": "OverwritePreviousReport",
+    "exportDescription": ""
+  }
+}
+EOF
+
+echo "Creating billing export '$exportNameParquet' using REST API..."
+az rest --method put \
+    --url "https://management.azure.com/$billingScope/providers/Microsoft.CostManagement/exports/$exportNameParquet?api-version=2023-07-01-preview" \
+    --body @body.json 1>/dev/null || {
+    echo "Failed to create billing export '$exportNameParquet' using REST API"
     exit 1
 }
 echo "Billing export '$exportNameParquet' created successfully."
+
+# Remove the temporary body.json file
+rm body.json
+
 
 # ---------------------------------------------
 # 3. Create Azure AD Application Registration
@@ -259,6 +331,7 @@ echo "Client ID:            $appId"
 echo "Client Secret:        $clientSecret"
 echo "Storage Account Name: $storageAccountName"
 echo "Billing Account ID:   $billingAccountId"
+echo "Subscription ID:      $currentSubscriptionId"
 echo ""
 echo "Ensure you handle these credentials securely."
 echo "============================================="
