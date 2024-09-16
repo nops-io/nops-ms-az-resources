@@ -76,7 +76,7 @@ echo "   - Application Name: $applicationName"
 echo "5. Assign 'Storage Blob Data Contributor' role to the application for above storage account"
 echo ""
 echo "Billing Account ID: $billingAccountId"
-echo "Subscription ID: $currentSubscriptionId"
+echo "Subscription ID: $CURRENT_SUBSCRIPTION_ID"
 echo ""
 echo "Press Enter to start the setup or Ctrl+C to cancel..."
 read -r
